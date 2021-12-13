@@ -10,7 +10,7 @@ import (
 	"github.com/xtls/xray-core/core"
 	"github.com/xtls/xray-core/infra/conf"
 	"github.com/xtls/xray-core/infra/conf/serial"
-	"github.com/xxf098/go-tun2socks-build/features"
+	"go-tun2socks-build/features"
 )
 
 // Start start with config

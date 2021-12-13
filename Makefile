@@ -6,7 +6,7 @@ ANDROID_ARTIFACT=$(BUILDDIR)/tun2socks.aar
 IOS_TARGET=ios
 ANDROID_TARGET=android
 LDFLAGS='-s -w -X google.golang.org/protobuf/reflect/protoregistry.conflictPolicy=warn'
-IMPORT_PATH=github.com/xxf098/go-tun2socks-build
+IMPORT_PATH=go-tun2socks-build
 
 BUILD_IOS="cd $(BUILDDIR) && $(GOBIND) -a -ldflags $(LDFLAGS) -target=$(IOS_TARGET) -o $(IOS_ARTIFACT) $(IMPORT_PATH)"
 BUILD_ANDROID="cd $(BUILDDIR) && $(GOBIND) -a -ldflags $(LDFLAGS) -target=$(ANDROID_TARGET) -o $(ANDROID_ARTIFACT) $(IMPORT_PATH)"

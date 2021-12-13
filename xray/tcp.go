@@ -12,7 +12,7 @@ import (
 
 	"github.com/eycorsican/go-tun2socks/core"
 	"github.com/xtls/xray-core/common/bytespool"
-	"github.com/xxf098/go-tun2socks-build/pool"
+	"go-tun2socks-build/pool"
 )
 
 type tcpHandler struct {
