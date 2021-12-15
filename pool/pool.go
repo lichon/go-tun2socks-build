@@ -10,7 +10,7 @@ import (
 	vbytespool "github.com/v2fly/v2ray-core/v4/common/bytespool"
 )
 
-const BufSize = 100 * 1024
+const BufSize = 20 * 1024
 
 type Interface struct {
 	io.ReadWriteCloser
