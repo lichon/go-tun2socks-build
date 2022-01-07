@@ -61,3 +61,5 @@ import (
 	// geodata
 	_ "github.com/v2fly/v2ray-core/v4/infra/conf/geodata/standard"
 )
+
+const BufSize = 200 * 1024

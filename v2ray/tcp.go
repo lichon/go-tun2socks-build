@@ -12,7 +12,6 @@ import (
 
 	"github.com/eycorsican/go-tun2socks/core"
 	"github.com/v2fly/v2ray-core/v4/common/bytespool"
-	"github.com/xxf098/go-tun2socks-build/pool"
 )
 
 type tcpHandler struct {
@@ -22,13 +21,13 @@ type tcpHandler struct {
 
 func (h *tcpHandler) relay(lhs net.Conn, rhs net.Conn) {
 	go func() {
-		buf := bytespool.Alloc(pool.BufSize)
+		buf := bytespool.Alloc(BufSize)
 		io.CopyBuffer(rhs, lhs, buf)
 		bytespool.Free(buf)
 		lhs.Close()
 		rhs.Close()
 	}()
-	buf := bytespool.Alloc(pool.BufSize)
+	buf := bytespool.Alloc(BufSize)
 	io.CopyBuffer(lhs, rhs, buf)
 	bytespool.Free(buf)
 	lhs.Close()

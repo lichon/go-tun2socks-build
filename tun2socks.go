@@ -4,39 +4,27 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"log"
 	"net"
 	"os"
-	"strings"
 	"syscall"
 	"time"
 
 	vcore "github.com/v2fly/v2ray-core/v4"
-	vproxyman "github.com/v2fly/v2ray-core/v4/app/proxyman"
 	vbytespool "github.com/v2fly/v2ray-core/v4/common/bytespool"
 	verrors "github.com/v2fly/v2ray-core/v4/common/errors"
 	v2stats "github.com/v2fly/v2ray-core/v4/features/stats"
 	vinternet "github.com/v2fly/v2ray-core/v4/transport/internet"
 
-	"go-tun2socks-build/features"
-	"go-tun2socks-build/ping"
-	"go-tun2socks-build/pool"
-	"go-tun2socks-build/runner"
-	"go-tun2socks-build/v2ray"
-
 	"github.com/eycorsican/go-tun2socks/core"
+
+	"go-tun2socks-build/v2ray"
 )
 
 var localDNS = "223.5.5.5:53"
 var err error
 var lwipStack core.LWIPStack
 var v *vcore.Instance
-var mtuUsed int
-var lwipTUNDataPipeTask *runner.Task
-var updateStatusPipeTask *runner.Task
-var tunDev *pool.Interface
-var lwipWriter io.Writer
 var statsManager v2stats.Manager
 var isStopped = false
 
@@ -46,17 +34,21 @@ const (
 
 type errPathObjHolder struct{}
 
-const (
-	VMESS string = "vmess"
-	VLESS string = "vless"
-)
+func init() {
+	net.DefaultResolver = &net.Resolver{
+		PreferGo: true,
+		Dial: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			d := net.Dialer{}
+			return d.DialContext(ctx, "udp", localDNS)
+			// d, _ := vnet.ParseDestination(fmt.Sprintf("%v:%v", network, localDNS))
+			// return vinternet.DialSystem(ctx, d, nil)
+		},
+	}
+}
 
 func newError(values ...interface{}) *verrors.Error {
 	return verrors.New(values...).WithPathObj(errPathObjHolder{})
 }
-
-type VmessOptions features.VmessOptions
-type Vmess features.Vmess
 
 // VpnService should be implemented in Java/Kotlin.
 type VpnService interface {
@@ -81,10 +73,6 @@ func InputPacket(data []byte) {
 
 type QuerySpeed interface {
 	UpdateTraffic(up int64, down int64)
-}
-
-type TestLatency interface {
-	UpdateLatency(id int, elapsed int64)
 }
 
 // SetNonblock puts the fd in blocking or non-blocking mode.
@@ -147,12 +135,7 @@ func StartV2Ray(
 			return err
 		}
 
-		// Configure sniffing settings for traffic coming from tun2socks.
-		sniffingConfig := &vproxyman.SniffingConfig{
-			Enabled:             false,
-			DestinationOverride: strings.Split("tls,http", ","),
-		}
-		ctx := contextWithSniffingConfig(context.Background(), sniffingConfig)
+		ctx := context.Background()
 
 		// Register tun2socks connection handlers.
 		// vhandler := v2ray.NewHandler(ctx, v)
@@ -170,8 +153,6 @@ func StartV2Ray(
 		})
 
 		statsManager = v.GetFeature(v2stats.ManagerType()).(v2stats.Manager)
-		// runner.CheckAndStop(updateStatusPipeTask)
-		// updateStatusPipeTask = createUpdateStatusPipeTask(querySpeed)
 		isStopped = false
 		logService.WriteLog(fmt.Sprintf("V2Ray %s started!", CheckVersion()))
 		return nil
@@ -179,61 +160,9 @@ func StartV2Ray(
 	return errors.New("packetFlow is null")
 }
 
-func handlePacket(ctx context.Context, tunDev *pool.Interface, lwipWriter io.Writer, shouldStop runner.S) {
-	// inbound := make(chan []byte, 100)
-	// outbound := make(chan []byte, 1000)
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	// defer close(outbound)
-
-	// writer
-	go func(ctx context.Context) {
-		for {
-			select {
-			case buffer, ok := <-tunDev.ReadCh:
-				if !ok {
-					return
-				}
-				_, _ = lwipWriter.Write(buffer)
-				vbytespool.Free(buffer)
-			case <-ctx.Done():
-				return
-			}
-		}
-	}(ctx)
-	tunDev.Run(ctx)
-}
-
-func createUpdateStatusPipeTask(querySpeed QuerySpeed) *runner.Task {
-	return runner.Go(func(shouldStop runner.S) error {
-		ticker := time.NewTicker(1 * time.Second)
-		defer ticker.Stop()
-		zeroErr := errors.New("nil")
-		for {
-			if shouldStop() {
-				break
-			}
-			select {
-			case <-ticker.C:
-				up := QueryOutboundStats("proxy", "uplink")
-				down := QueryOutboundStats("proxy", "downlink")
-				querySpeed.UpdateTraffic(up, down)
-				// case <-lwipTUNDataPipeTask.StopChan():
-				// 	return errors.New("stopped")
-			}
-		}
-		return zeroErr
-	})
-}
-
 // StopV2Ray stop v2ray
 func StopV2Ray() {
 	isStopped = true
-	if tunDev != nil {
-		tunDev.Stop()
-	}
-	runner.CheckAndStop(updateStatusPipeTask)
-	runner.CheckAndStop(lwipTUNDataPipeTask)
 
 	if lwipStack != nil {
 		//lwipStack.Close()
@@ -288,57 +217,6 @@ func QueryInboundStats(tag string, direct string) int64 {
 	return counter.Set(0)
 }
 
-// func queryStatsBg(log LogService) {
-// 	for {
-// 		if statsManager == nil {
-// 			log.WriteLog("statsManager nil")
-// 			return
-// 		}
-// 		name := "vmess>>>" + "ssrray" + ">>>traffic>>>" + "down"
-// 		counter := statsManager.GetCounter(name)
-// 		if counter == nil {
-// 			log.WriteLog("counter nil")
-// 		}
-// 		time.Sleep(500 * time.Millisecond)
-// 	}
-// }
-
-func init() {
-	net.DefaultResolver = &net.Resolver{
-		PreferGo: true,
-		Dial: func(ctx context.Context, network, addr string) (net.Conn, error) {
-			d := net.Dialer{}
-			return d.DialContext(ctx, "udp", localDNS)
-			// d, _ := vnet.ParseDestination(fmt.Sprintf("%v:%v", network, localDNS))
-			// return vinternet.DialSystem(ctx, d, nil)
-		},
-	}
-}
-
 func CheckVersion() string {
 	return vcore.Version()
-}
-
-func TestURLLatency(url string) (int64, error) {
-	return testLatency(url)
-}
-
-func TestTCPPing(host string, port int) (int64, error) {
-	tcpping := ping.NewTCPPing(host, port)
-	result := <-tcpping.Start()
-	return result.Get()
-}
-
-func GetFreePort() (int, error) {
-	addr, err := net.ResolveTCPAddr("tcp", "localhost:0")
-	if err != nil {
-		return 0, err
-	}
-
-	l, err := net.ListenTCP("tcp", addr)
-	if err != nil {
-		return 0, err
-	}
-	defer l.Close()
-	return l.Addr().(*net.TCPAddr).Port, nil
 }

@@ -16,7 +16,6 @@ import (
 	"github.com/eycorsican/go-tun2socks/common/log"
 	"github.com/eycorsican/go-tun2socks/core"
 	"github.com/v2fly/v2ray-core/v4/common/bytespool"
-	"github.com/xxf098/go-tun2socks-build/pool"
 )
 
 type udpConnEntry struct {
@@ -49,7 +48,7 @@ func (h *udpHandler) fetchInput(conn core.UDPConn) {
 		return
 	}
 
-	buf := bytespool.Alloc(pool.BufSize)
+	buf := bytespool.Alloc(BufSize)
 	defer bytespool.Free(buf)
 
 	for {
