@@ -4,14 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"net"
 	"os"
 	"syscall"
 	"time"
 
 	vcore "github.com/v2fly/v2ray-core/v4"
-	vbytespool "github.com/v2fly/v2ray-core/v4/common/bytespool"
 	verrors "github.com/v2fly/v2ray-core/v4/common/errors"
 	v2stats "github.com/v2fly/v2ray-core/v4/features/stats"
 	vinternet "github.com/v2fly/v2ray-core/v4/transport/internet"
@@ -23,7 +21,7 @@ import (
 
 var localDNS = "223.5.5.5:53"
 var err error
-var lwipStack core.LWIPStack
+var ipStack core.LWIPStack
 var v *vcore.Instance
 var statsManager v2stats.Manager
 var isStopped = false
@@ -66,8 +64,8 @@ type PacketFlow interface {
 // Write IP packets to the lwIP stack. Call this function in the main loop of
 // the VpnService in Java/Kotlin, which should reads packets from the TUN fd.
 func InputPacket(data []byte) {
-	if lwipStack != nil {
-		lwipStack.Write(data)
+	if ipStack != nil {
+		ipStack.Write(data)
 	}
 }
 
@@ -101,9 +99,9 @@ func StartV2Ray(
 	assetPath string) error {
 	if packetFlow != nil {
 
-		if lwipStack == nil {
+		if ipStack == nil {
 			// Setup the lwIP stack.
-			lwipStack = core.NewLWIPStack()
+			ipStack = core.NewLWIPStack()
 		}
 
 		// Assets
@@ -125,22 +123,16 @@ func StartV2Ray(
 		vinternet.RegisterDialerController(netCtlr)
 		vinternet.RegisterListenerController(netCtlr)
 
-		// Share the buffer pool.
-		core.SetBufferPool(vbytespool.GetPool(core.BufSize))
-
 		// Start the V2Ray instance.
 		v, err = vcore.StartInstance("json", configBytes)
 		if err != nil {
-			log.Fatalf("start V instance failed: %v", err)
+			logService.WriteLog(fmt.Sprintf("start V instance failed: %v", err))
 			return err
 		}
 
 		ctx := context.Background()
 
 		// Register tun2socks connection handlers.
-		// vhandler := v2ray.NewHandler(ctx, v)
-		// core.RegisterTCPConnectionHandler(vhandler)
-		// core.RegisterUDPConnectionHandler(vhandler)
 		core.RegisterTCPConnHandler(v2ray.NewTCPHandler(ctx, v))
 		core.RegisterUDPConnHandler(v2ray.NewUDPHandler(ctx, v, 3*time.Minute))
 
@@ -164,9 +156,9 @@ func StartV2Ray(
 func StopV2Ray() {
 	isStopped = true
 
-	if lwipStack != nil {
-		//lwipStack.Close()
-		//lwipStack = nil
+	if ipStack != nil {
+		//ipStack.Close()
+		//ipStack = nil
 	}
 	if statsManager != nil {
 		statsManager.Close()

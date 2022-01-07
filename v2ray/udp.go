@@ -7,15 +7,15 @@ import (
 	"net"
 	"sync"
 	"time"
+	"log"
 
 	vcore "github.com/v2fly/v2ray-core/v4"
 	vsession "github.com/v2fly/v2ray-core/v4/common/session"
 	vsignal "github.com/v2fly/v2ray-core/v4/common/signal"
 	vtask "github.com/v2fly/v2ray-core/v4/common/task"
-
-	"github.com/eycorsican/go-tun2socks/common/log"
-	"github.com/eycorsican/go-tun2socks/core"
 	"github.com/v2fly/v2ray-core/v4/common/bytespool"
+
+	"github.com/eycorsican/go-tun2socks/core"
 )
 
 type udpConnEntry struct {
@@ -106,7 +106,7 @@ func (h *udpHandler) Connect(conn core.UDPConn, target *net.UDPAddr) error {
 			pc.Close()
 		}
 	}()
-	log.Infof("new proxy connection for target: %s:%s", target.Network(), target.String())
+	log.Println("new proxy connection for target: %s:%s", target.Network(), target.String())
 	return nil
 }
 

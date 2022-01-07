@@ -2,7 +2,7 @@ package tun2socks
 
 import (
 	alog "github.com/v2fly/v2ray-core/v4/app/log"
-	"github.com/v2fly/v2ray-core/v4/common"
+	vcommon "github.com/v2fly/v2ray-core/v4/common"
 	vcommonlog "github.com/v2fly/v2ray-core/v4/common/log"
 )
 
@@ -33,7 +33,7 @@ func createLogWriter(logService LogService) vcommonlog.WriterCreator {
 
 func registerLogService(logService LogService) {
 	if logService != nil {
-		common.Must(alog.RegisterHandlerCreator(alog.LogType_Console, func(lt alog.LogType,
+		vcommon.Must(alog.RegisterHandlerCreator(alog.LogType_Console, func(lt alog.LogType,
 			options alog.HandlerCreatorOptions) (vcommonlog.Handler, error) {
 			return vcommonlog.NewLogger(createLogWriter(logService)), nil
 		}))
