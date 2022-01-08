@@ -2,7 +2,6 @@ package v2ray
 
 import (
 	"context"
-	"log"
 	"net"
 	"time"
 
@@ -79,11 +78,11 @@ func handleUDP(packet core.UDPPacket, v *vcore.Instance) {
 		ctx := vsession.ContextWithID(context.Background(), vsession.NewID())
 		ctx, cancel := context.WithCancel(ctx)
 		pc, err := vcore.DialUDP(ctx, v)
+		timer := vsignal.CancelAfterInactivity(ctx, cancel, _udpSessionTimeout)
 		if err != nil {
-			log.Printf("[UDP] dial %s error: %v", metadata.DestinationAddress(), err)
+			// log.Printf("[UDP] dial %s error: %v", metadata.DestinationAddress(), err)
 			return
 		}
-		timer := vsignal.CancelAfterInactivity(ctx, cancel, _udpSessionTimeout)
 
 		if dialerAddr, ok := pc.LocalAddr().(*net.UDPAddr); ok {
 			metadata.MidIP = dialerAddr.IP
@@ -113,11 +112,11 @@ func handleUDPToRemote(packet core.UDPPacket, pc net.PacketConn, remote net.Addr
 	}()
 
 	if _, err := pc.WriteTo(packet.Data() /* data */, remote); err != nil {
-		log.Printf("[UDP] write to %s error: %v", remote, err)
+		// log.Printf("[UDP] write to %s error: %v", remote, err)
 	}
 	pc.SetReadDeadline(time.Now().Add(_udpSessionTimeout)) /* reset timeout */
 
-	log.Printf("[UDP] %s --> %s", packet.RemoteAddr(), remote)
+	// log.Printf("[UDP] %s --> %s", packet.RemoteAddr(), remote)
 }
 
 func handleUDPToLocal(packet core.UDPPacket, pc net.PacketConn, timer vsignal.ActivityUpdater) {
@@ -128,16 +127,16 @@ func handleUDPToLocal(packet core.UDPPacket, pc net.PacketConn, timer vsignal.Ac
 		// pc.SetReadDeadline(time.Now().Add(_udpSessionTimeout))
 		n, from, err := pc.ReadFrom(buf)
 		if err != nil {
-			log.Printf("[UDP] read error: %v", err)
+			// log.Printf("[UDP] read error: %v", err)
 			return
 		}
 		timer.Update()
 
 		if _, err := packet.WriteBack(buf[:n], from); err != nil {
-			log.Printf("[UDP] write back from %s error: %v", from, err)
+			// log.Printf("[UDP] write back from %s error: %v", from, err)
 			return
 		}
 
-		log.Printf("[UDP] %s <-- %s", packet.RemoteAddr(), from)
+		// log.Printf("[UDP] %s <-- %s", packet.RemoteAddr(), from)
 	}
 }

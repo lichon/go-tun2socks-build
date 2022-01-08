@@ -3,7 +3,6 @@ package v2ray
 import (
 	"context"
 	"io"
-	"log"
 	"net"
 	"sync"
 	"time"
@@ -38,7 +37,7 @@ func handleTCP(localConn core.TCPConn, v *vcore.Instance) {
 
 	targetConn, err := vcore.Dial(ctx, v, dest)
 	if err != nil {
-		log.Printf("[TCP] dial %s error: %v", metadata.DestinationAddress(), err)
+		// log.Printf("[TCP] dial %s error: %v", metadata.DestinationAddress(), err)
 		return
 	}
 
