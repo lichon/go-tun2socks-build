@@ -2,139 +2,142 @@ package v2ray
 
 import (
 	"context"
-	"errors"
-	"fmt"
-	"net"
-	"sync"
-	"time"
 	"log"
+	"net"
+	"time"
 
 	vcore "github.com/v2fly/v2ray-core/v4"
+	pool "github.com/v2fly/v2ray-core/v4/common/bytespool"
 	vsession "github.com/v2fly/v2ray-core/v4/common/session"
 	vsignal "github.com/v2fly/v2ray-core/v4/common/signal"
-	vtask "github.com/v2fly/v2ray-core/v4/common/task"
-	"github.com/v2fly/v2ray-core/v4/common/bytespool"
 
-	"github.com/eycorsican/go-tun2socks/core"
+	"go-tun2socks-build/core/nat"
+
+	M "go-tun2socks-build/constant"
+	"go-tun2socks-build/core"
 )
 
-type udpConnEntry struct {
-	conn net.PacketConn
+var (
+	// _natTable uses source udp packet information
+	// as key to store destination udp packetConn.
+	_natTable = nat.NewTable()
 
-	// `ReadFrom` method of PacketConn given by V2Ray
-	// won't return the correct remote address, we treat
-	// all data receive from V2Ray are coming from the
-	// same remote host, i.e. the `target` that passed
-	// to `Connect`.
-	target *net.UDPAddr
+	// _udpSessionTimeout is the default timeout for
+	// each UDP session.
+	_udpSessionTimeout = 90 * time.Second
+)
 
-	updater vsignal.ActivityUpdater
+func SetUDPTimeout(v int) {
+	_udpSessionTimeout = time.Duration(v) * time.Second
 }
 
-type udpHandler struct {
-	sync.Mutex
+func handleUDP(packet core.UDPPacket, v *vcore.Instance) {
+	id := packet.ID()
+	metadata := &M.Metadata{
+		Net:     M.UDP,
+		SrcIP:   net.IP(id.RemoteAddress),
+		SrcPort: id.RemotePort,
+		DstIP:   net.IP(id.LocalAddress),
+		DstPort: id.LocalPort,
+	}
 
-	ctx     context.Context
-	v       *vcore.Instance
-	conns   map[core.UDPConn]*udpConnEntry
-	timeout time.Duration // Maybe override by V2Ray local policies for some conns.
-}
+	generateNATKey := func(m *M.Metadata) string {
+		return m.SourceAddress() /* as Full Cone NAT Key */
+	}
+	key := generateNATKey(metadata)
 
-func (h *udpHandler) fetchInput(conn core.UDPConn) {
-	h.Lock()
-	c, ok := h.conns[conn]
-	h.Unlock()
-	if !ok {
+	handle := func(drop bool) bool {
+		pc := _natTable.Get(key)
+		if pc != nil {
+			dest := &net.UDPAddr{IP: metadata.DstIP, Port: int(metadata.DstPort)}
+			handleUDPToRemote(packet, pc, dest, drop)
+			return true
+		}
+		return false
+	}
+
+	if handle(true /* drop */) {
 		return
 	}
 
-	buf := bytespool.Alloc(BufSize)
-	defer bytespool.Free(buf)
-
-	for {
-		n, _, err := c.conn.ReadFrom(buf)
-		if err != nil && n <= 0 {
-			h.Close(conn)
-			conn.Close()
-			return
-		}
-		c.updater.Update()
-		_, err = conn.WriteFrom(buf[:n], c.target)
-		if err != nil {
-			h.Close(conn)
-			conn.Close()
-			return
-		}
-	}
-}
-
-func NewUDPHandler(ctx context.Context, instance *vcore.Instance, timeout time.Duration) core.UDPConnHandler {
-	return &udpHandler{
-		ctx:     ctx,
-		v:       instance,
-		conns:   make(map[core.UDPConn]*udpConnEntry, 16),
-		timeout: timeout,
-	}
-}
-
-func (h *udpHandler) Connect(conn core.UDPConn, target *net.UDPAddr) error {
-	if target == nil {
-		return errors.New("nil target is not allowed")
-	}
-	sid := vsession.NewID()
-	ctx := vsession.ContextWithID(h.ctx, sid)
-	ctx, cancel := context.WithCancel(ctx)
-	pc, err := vcore.DialUDP(ctx, h.v)
-	if err != nil {
-		cancel()
-		return fmt.Errorf("dial V proxy connection failed: %v", err)
-	}
-	timer := vsignal.CancelAfterInactivity(ctx, cancel, h.timeout)
-	h.Lock()
-	h.conns[conn] = &udpConnEntry{
-		conn:    pc,
-		target:  target,
-		updater: timer,
-	}
-	h.Unlock()
-	fetchTask := func() error {
-		h.fetchInput(conn)
-		return nil
-	}
+	lockKey := key + "-lock"
+	cond, loaded := _natTable.GetOrCreateLock(lockKey)
 	go func() {
-		if err := vtask.Run(ctx, fetchTask); err != nil {
-			pc.Close()
+		if loaded {
+			cond.L.Lock()
+			cond.Wait()
+			handle(true) /* drop after sending data to remote */
+			cond.L.Unlock()
+			return
+		}
+
+		defer func() {
+			_natTable.Delete(lockKey)
+			cond.Broadcast()
+		}()
+
+		ctx := vsession.ContextWithID(context.Background(), vsession.NewID())
+		ctx, cancel := context.WithCancel(ctx)
+		pc, err := vcore.DialUDP(ctx, v)
+		if err != nil {
+			log.Printf("[UDP] dial %s error: %v", metadata.DestinationAddress(), err)
+			return
+		}
+		timer := vsignal.CancelAfterInactivity(ctx, cancel, _udpSessionTimeout)
+
+		if dialerAddr, ok := pc.LocalAddr().(*net.UDPAddr); ok {
+			metadata.MidIP = dialerAddr.IP
+			metadata.MidPort = uint16(dialerAddr.Port)
+		} else { /* fallback */
+			metadata.MidIP, metadata.MidPort = parseAddr(pc.LocalAddr().String())
+		}
+
+		go func() {
+			defer pc.Close()
+			defer packet.Drop()
+			defer _natTable.Delete(key)
+
+			handleUDPToLocal(packet, pc, timer)
+		}()
+
+		_natTable.Set(key, pc)
+		handle(false /* drop */)
+	}()
+}
+
+func handleUDPToRemote(packet core.UDPPacket, pc net.PacketConn, remote net.Addr, drop bool) {
+	defer func() {
+		if drop {
+			packet.Drop()
 		}
 	}()
-	log.Println("new proxy connection for target: %s:%s", target.Network(), target.String())
-	return nil
+
+	if _, err := pc.WriteTo(packet.Data() /* data */, remote); err != nil {
+		log.Printf("[UDP] write to %s error: %v", remote, err)
+	}
+	pc.SetReadDeadline(time.Now().Add(_udpSessionTimeout)) /* reset timeout */
+
+	log.Printf("[UDP] %s --> %s", packet.RemoteAddr(), remote)
 }
 
-func (h *udpHandler) ReceiveTo(conn core.UDPConn, data []byte, addr *net.UDPAddr) error {
-	h.Lock()
-	c, ok := h.conns[conn]
-	h.Unlock()
+func handleUDPToLocal(packet core.UDPPacket, pc net.PacketConn, timer vsignal.ActivityUpdater) {
+	buf := pool.Alloc(MaxSegmentSize)
+	defer pool.Free(buf)
 
-	if ok {
-		_, err := c.conn.WriteTo(data, addr)
-		c.updater.Update()
+	for /* just loop */ {
+		// pc.SetReadDeadline(time.Now().Add(_udpSessionTimeout))
+		n, from, err := pc.ReadFrom(buf)
 		if err != nil {
-			h.Close(conn)
-			return fmt.Errorf("write remote failed: %v", err)
+			log.Printf("[UDP] read error: %v", err)
+			return
 		}
-		return nil
-	} else {
-		h.Close(conn)
-		return fmt.Errorf("proxy connection %v->%v does not exists", conn.LocalAddr(), addr)
-	}
-}
+		timer.Update()
 
-func (h *udpHandler) Close(conn core.UDPConn) {
-	h.Lock()
-	defer h.Unlock()
+		if _, err := packet.WriteBack(buf[:n], from); err != nil {
+			log.Printf("[UDP] write back from %s error: %v", from, err)
+			return
+		}
 
-	if c, found := h.conns[conn]; found {
-		c.conn.Close()
+		log.Printf("[UDP] %s <-- %s", packet.RemoteAddr(), from)
 	}
-	delete(h.conns, conn)
 }

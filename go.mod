@@ -3,10 +3,15 @@ module go-tun2socks-build
 go 1.16
 
 require (
-	github.com/eycorsican/go-tun2socks v1.16.11
 	github.com/v2fly/v2ray-core/v4 v4.40.1
 	golang.org/x/mobile v0.0.0-20210220033013-bdb1ca9a1e08
 	golang.org/x/net v0.0.0-20210614182718-04defd469f4e
+)
+
+require (
+	inet.af/netstack v0.0.0-20211120045802-8aa80cf23d3c
+	golang.org/x/time v0.0.0-20211116232009-f0f3c7e86c11
+	github.com/google/btree v1.0.1 // indirect
 )
 
 require (

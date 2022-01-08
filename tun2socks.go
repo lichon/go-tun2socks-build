@@ -5,23 +5,22 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"os"
 	"syscall"
-	"time"
 
 	vcore "github.com/v2fly/v2ray-core/v4"
 	verrors "github.com/v2fly/v2ray-core/v4/common/errors"
 	v2stats "github.com/v2fly/v2ray-core/v4/features/stats"
 	vinternet "github.com/v2fly/v2ray-core/v4/transport/internet"
 
-	"github.com/eycorsican/go-tun2socks/core"
-
+	"go-tun2socks-build/core/device/rwbased"
+	"go-tun2socks-build/core/stack"
 	"go-tun2socks-build/v2ray"
 )
 
 var localDNS = "223.5.5.5:53"
 var err error
-var ipStack core.LWIPStack
+var ipStack *stack.Stack
+var endpoint *rwbased.Endpoint
 var v *vcore.Instance
 var statsManager v2stats.Manager
 var isStopped = false
@@ -58,14 +57,14 @@ type VpnService interface {
 // PacketFlow should be implemented in Java/Kotlin.
 type PacketFlow interface {
 	// WritePacket should writes packets to the TUN fd.
-	WritePacket(packet []byte)
+	Write(packet []byte) (int, error)
 }
 
 // Write IP packets to the lwIP stack. Call this function in the main loop of
 // the VpnService in Java/Kotlin, which should reads packets from the TUN fd.
 func InputPacket(data []byte) {
-	if ipStack != nil {
-		ipStack.Write(data)
+	if endpoint != nil {
+		endpoint.DeliverNetworkPacket(data)
 	}
 }
 
@@ -94,19 +93,9 @@ func StartV2Ray(
 	packetFlow PacketFlow,
 	vpnService VpnService,
 	logService LogService,
-	querySpeed QuerySpeed,
-	configBytes []byte,
-	assetPath string) error {
+	configBytes []byte) error {
 	if packetFlow != nil {
-
-		if ipStack == nil {
-			// Setup the lwIP stack.
-			ipStack = core.NewLWIPStack()
-		}
-
-		// Assets
-		os.Setenv(v2Asset, assetPath)
-		// log
+		// v2ray log
 		registerLogService(logService)
 
 		// Protect file descriptors of net connections in the VPN process to prevent infinite loop.
@@ -130,19 +119,10 @@ func StartV2Ray(
 			return err
 		}
 
-		ctx := context.Background()
-
-		// Register tun2socks connection handlers.
-		core.RegisterTCPConnHandler(v2ray.NewTCPHandler(ctx, v))
-		core.RegisterUDPConnHandler(v2ray.NewUDPHandler(ctx, v, 3*time.Minute))
-
-		// Write IP packets back to TUN.
-		core.RegisterOutputFn(func(data []byte) (int, error) {
-			if !isStopped {
-				packetFlow.WritePacket(data)
-			}
-			return len(data), nil
-		})
+		if ipStack == nil {
+			endpoint, _ = rwbased.New(packetFlow, 1500)
+			ipStack, _ = stack.New(endpoint, v2ray.NewHandler(v), stack.WithDefault())
+		}
 
 		statsManager = v.GetFeature(v2stats.ManagerType()).(v2stats.Manager)
 		isStopped = false
@@ -157,8 +137,8 @@ func StopV2Ray() {
 	isStopped = true
 
 	if ipStack != nil {
-		//ipStack.Close()
-		//ipStack = nil
+		ipStack.Close()
+		ipStack = nil
 	}
 	if statsManager != nil {
 		statsManager.Close()
@@ -167,9 +147,6 @@ func StopV2Ray() {
 	if v != nil {
 		v.Close()
 		v = nil
-
-		core.RegisterTCPConnHandler(nil)
-		core.RegisterUDPConnHandler(nil)
 	}
 }
 
