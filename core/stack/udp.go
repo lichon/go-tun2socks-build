@@ -27,11 +27,11 @@ func withUDPHandler() Option {
 				return true
 			}
 
-			if !verifyChecksum(udpHdr, pkt) {
-				// Checksum error.
-				s.Stats().UDP.ChecksumErrors.Increment()
-				return true
-			}
+			// if !verifyChecksum(udpHdr, pkt) {
+			// 	// Checksum error.
+			// 	s.Stats().UDP.ChecksumErrors.Increment()
+			// 	return true
+			// }
 
 			s.Stats().UDP.PacketsReceived.Increment()
 
