@@ -6,12 +6,12 @@ import (
 	"time"
 
 	vcore "github.com/v2fly/v2ray-core/v4"
-	pool "github.com/v2fly/v2ray-core/v4/common/bytespool"
 	vsession "github.com/v2fly/v2ray-core/v4/common/session"
 	vsignal "github.com/v2fly/v2ray-core/v4/common/signal"
 
 	"go-tun2socks-build/core/nat"
 
+	"go-tun2socks-build/common/pool"
 	M "go-tun2socks-build/constant"
 	"go-tun2socks-build/core"
 )
@@ -120,8 +120,8 @@ func handleUDPToRemote(packet core.UDPPacket, pc net.PacketConn, remote net.Addr
 }
 
 func handleUDPToLocal(packet core.UDPPacket, pc net.PacketConn, timer vsignal.ActivityUpdater) {
-	buf := pool.Alloc(MaxSegmentSize)
-	defer pool.Free(buf)
+	buf := pool.Get(MaxSegmentSize)
+	defer pool.Put(buf)
 
 	for /* just loop */ {
 		// pc.SetReadDeadline(time.Now().Add(_udpSessionTimeout))

@@ -8,10 +8,10 @@ import (
 	"time"
 
 	vcore "github.com/v2fly/v2ray-core/v4"
-	pool "github.com/v2fly/v2ray-core/v4/common/bytespool"
 	vnet "github.com/v2fly/v2ray-core/v4/common/net"
 	vsession "github.com/v2fly/v2ray-core/v4/common/session"
 
+	"go-tun2socks-build/common/pool"
 	M "go-tun2socks-build/constant"
 	"go-tun2socks-build/core"
 )
@@ -74,8 +74,8 @@ func relay(left, right net.Conn) {
 }
 
 func copyBuffer(dst io.Writer, src io.Reader) error {
-	buf := pool.Alloc(RelayBufferSize)
-	defer pool.Free(buf)
+	buf := pool.Get(RelayBufferSize)
+	defer pool.Put(buf)
 
 	_, err := io.CopyBuffer(dst, src, buf)
 	return err
