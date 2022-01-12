@@ -8,9 +8,9 @@ require (
 )
 
 require (
-	inet.af/netstack v0.0.0-20211120045802-8aa80cf23d3c
-	golang.org/x/time v0.0.0-20211116232009-f0f3c7e86c11
 	github.com/google/btree v1.0.1 // indirect
+	golang.org/x/time v0.0.0-20211116232009-f0f3c7e86c11
+	inet.af/netstack v0.0.0-20211120045802-8aa80cf23d3c
 )
 
 require (
@@ -39,7 +39,7 @@ require (
 	go4.org/intern v0.0.0-20210108033219-3eb7198706b2 // indirect
 	go4.org/unsafe/assume-no-moving-gc v0.0.0-20201222180813-1025295fd063 // indirect
 	golang.org/x/crypto v0.0.0-20210817164053-32db794688a5 // indirect
-	golang.org/x/mobile v0.0.0-20220104184238-4a8be17bd2e3 // indirect
+	golang.org/x/mobile v0.0.0-20220112015953-858099ff7816 // indirect
 	golang.org/x/mod v0.4.2 // indirect
 	golang.org/x/net v0.0.0-20210903162142-ad29c8ab022f // indirect
 	golang.org/x/text v0.3.6 // indirect

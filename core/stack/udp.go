@@ -122,6 +122,7 @@ func sendUDP(r *stack.Route, data buffer.VectorisedView, localPort, remotePort u
 		ReserveHeaderBytes: header.UDPMinimumSize + int(r.MaxHeaderLength()),
 		Data:               data,
 	})
+	defer pkt.DecRef()
 
 	// Initialize the UDP header.
 	udpHdr := header.UDP(pkt.TransportHeader().Push(header.UDPMinimumSize))

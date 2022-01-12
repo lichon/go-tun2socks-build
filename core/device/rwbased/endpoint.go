@@ -61,6 +61,7 @@ func (e *Endpoint) DeliverNetworkPacket(data []byte) {
 		Data: buffer.NewVectorisedView(len(data), []buffer.View{buffer.NewViewFromBytes(data)}),
 	})
 	e.dispatcher.DeliverNetworkPacket("", "", header.IPv4ProtocolNumber, pkb)
+	pkb.DecRef()
 }
 
 func (e *Endpoint) writePacket(pkt *stack.PacketBuffer) tcpip.Error {
