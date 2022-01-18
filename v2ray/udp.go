@@ -120,7 +120,7 @@ func handleUDPToRemote(packet core.UDPPacket, pc net.PacketConn, remote net.Addr
 }
 
 func handleUDPToLocal(packet core.UDPPacket, pc net.PacketConn, timer vsignal.ActivityUpdater) {
-	buf := pool.Get(MaxSegmentSize)
+	buf := pool.Get(RelayBufferSize)
 	defer pool.Put(buf)
 
 	for /* just loop */ {
