@@ -2,6 +2,7 @@ package v2ray
 
 import (
 	"context"
+	"log"
 	"net"
 	"time"
 
@@ -120,7 +121,7 @@ func handleUDPToRemote(packet core.UDPPacket, pc net.PacketConn, remote net.Addr
 }
 
 func handleUDPToLocal(packet core.UDPPacket, pc net.PacketConn, timer vsignal.ActivityUpdater) {
-	buf := pool.Get(RelayBufferSize)
+	buf := pool.Get(MaxSegmentSize)
 	defer pool.Put(buf)
 
 	for /* just loop */ {
@@ -132,11 +133,12 @@ func handleUDPToLocal(packet core.UDPPacket, pc net.PacketConn, timer vsignal.Ac
 		}
 		timer.Update()
 
-		if _, err := packet.WriteBack(buf[:n], from); err != nil {
-			// log.Printf("[UDP] write back from %s error: %v", from, err)
+		size, err := packet.WriteBack(buf[:n], from)
+		if err != nil {
+			log.Printf("[UDP] write back from %s error: %v", from, err)
 			return
 		}
 
-		// log.Printf("[UDP] %s <-- %s", packet.RemoteAddr(), from)
+		log.Printf("[UDP] %s <-- %s recv:%d send:%d", packet.RemoteAddr(), from, n, size)
 	}
 }
