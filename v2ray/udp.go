@@ -2,7 +2,6 @@ package v2ray
 
 import (
 	"context"
-	"log"
 	"net"
 	"time"
 
@@ -114,6 +113,7 @@ func handleUDPToRemote(packet core.UDPPacket, pc net.PacketConn, remote net.Addr
 
 	if _, err := pc.WriteTo(packet.Data() /* data */, remote); err != nil {
 		// log.Printf("[UDP] write to %s error: %v", remote, err)
+		return
 	}
 	pc.SetReadDeadline(time.Now().Add(_udpSessionTimeout)) /* reset timeout */
 
@@ -133,12 +133,11 @@ func handleUDPToLocal(packet core.UDPPacket, pc net.PacketConn, timer vsignal.Ac
 		}
 		timer.Update()
 
-		size, err := packet.WriteBack(buf[:n], from)
-		if err != nil {
-			log.Printf("[UDP] write back from %s error: %v", from, err)
+		if _, err := packet.WriteBack(buf[:n], from); err != nil {
+			// log.Printf("[UDP] write back from %s error: %v", from, err)
 			return
 		}
 
-		log.Printf("[UDP] %s <-- %s recv:%d send:%d", packet.RemoteAddr(), from, n, size)
+		// log.Printf("[UDP] %s <-- %s recv:%d send:%d", packet.RemoteAddr(), from, n, size)
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"os"
 	"syscall"
 
 	vcore "github.com/v2fly/v2ray-core/v4"
@@ -41,6 +42,7 @@ func init() {
 			// return vinternet.DialSystem(ctx, d, nil)
 		},
 	}
+	os.Setenv("v2ray.ray.buffer.size", "0")
 }
 
 func newError(values ...interface{}) *verrors.Error {
@@ -79,6 +81,11 @@ func SetNonblock(fd int, nonblocking bool) bool {
 		return false
 	}
 	return true
+}
+
+// Set buffer size
+func SetConnectionBuffer(size string) {
+	os.Setenv("v2ray.ray.buffer.size", size)
 }
 
 // SetLocalDNS sets the DNS server that used by Go's default resolver, it accepts
