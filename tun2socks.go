@@ -83,11 +83,6 @@ func SetNonblock(fd int, nonblocking bool) bool {
 	return true
 }
 
-// Set buffer size
-func SetConnectionBuffer(size string) {
-	os.Setenv("v2ray.ray.buffer.size", size)
-}
-
 // SetLocalDNS sets the DNS server that used by Go's default resolver, it accepts
 // string in the form "host:port", e.g. 223.5.5.5:53
 func SetLocalDNS(dns string) {
