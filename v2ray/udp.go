@@ -2,12 +2,21 @@ package v2ray
 
 import (
 	"context"
+	"errors"
+	"io"
+	"log"
 	"net"
 	"time"
 
 	vcore "github.com/v2fly/v2ray-core/v4"
+	vbuf "github.com/v2fly/v2ray-core/v4/common/buf"
+	vnet "github.com/v2fly/v2ray-core/v4/common/net"
+	"github.com/v2fly/v2ray-core/v4/common/protocol/udp"
 	vsession "github.com/v2fly/v2ray-core/v4/common/session"
 	vsignal "github.com/v2fly/v2ray-core/v4/common/signal"
+	"github.com/v2fly/v2ray-core/v4/common/signal/done"
+	vrouting "github.com/v2fly/v2ray-core/v4/features/routing"
+	vudptrans "github.com/v2fly/v2ray-core/v4/transport/internet/udp"
 
 	"go-tun2socks-build/core/nat"
 
@@ -77,7 +86,7 @@ func handleUDP(packet core.UDPPacket, v *vcore.Instance) {
 
 		ctx := vsession.ContextWithID(context.Background(), vsession.NewID())
 		ctx, cancel := context.WithCancel(ctx)
-		pc, err := vcore.DialUDP(ctx, v)
+		pc, err := DialUDP(ctx, v)
 		timer := vsignal.CancelAfterInactivity(ctx, cancel, _udpSessionTimeout)
 		if err != nil {
 			// log.Printf("[UDP] dial %s error: %v", metadata.DestinationAddress(), err)
@@ -140,4 +149,90 @@ func handleUDPToLocal(packet core.UDPPacket, pc net.PacketConn, timer vsignal.Ac
 
 		// log.Printf("[UDP] %s <-- %s recv:%d send:%d", packet.RemoteAddr(), from, n, size)
 	}
+}
+
+func DialUDP(ctx context.Context, v *vcore.Instance) (net.PacketConn, error) {
+	dispatcher := v.GetFeature(vrouting.DispatcherType())
+	if dispatcher == nil {
+		return nil, errors.New("routing.Dispatcher is not registered in V2Ray core")
+	}
+	return DialDispatcher(ctx, dispatcher.(vrouting.Dispatcher))
+}
+
+type dispatcherConn struct {
+	dispatcher *vudptrans.Dispatcher
+	cache      chan *udp.Packet
+	done       *done.Instance
+}
+
+func DialDispatcher(ctx context.Context, dispatcher vrouting.Dispatcher) (net.PacketConn, error) {
+	c := &dispatcherConn{
+		cache: make(chan *udp.Packet, 64*1024),
+		done:  done.New(),
+	}
+
+	log.Printf("Dial udp with chan size 64*1024")
+	d := vudptrans.NewDispatcher(dispatcher, c.callback)
+	c.dispatcher = d
+	return c, nil
+}
+
+func (c *dispatcherConn) callback(ctx context.Context, packet *udp.Packet) {
+	select {
+	case <-c.done.Wait():
+		packet.Payload.Release()
+		return
+	case c.cache <- packet:
+	default:
+		log.Printf("udp chan full, drop")
+		packet.Payload.Release()
+	}
+}
+
+func (c *dispatcherConn) ReadFrom(p []byte) (int, net.Addr, error) {
+	select {
+	case <-c.done.Wait():
+		return 0, nil, io.EOF
+	case packet := <-c.cache:
+		n := copy(p, packet.Payload.Bytes())
+		packet.Payload.Release()
+		return n, &net.UDPAddr{
+			IP:   packet.Source.Address.IP(),
+			Port: int(packet.Source.Port),
+		}, nil
+	}
+}
+
+func (c *dispatcherConn) WriteTo(p []byte, addr net.Addr) (int, error) {
+	buffer := vbuf.New()
+	raw := buffer.Extend(vbuf.Size)
+	n := copy(raw, p)
+	buffer.Resize(0, int32(n))
+
+	ctx := context.Background()
+	c.dispatcher.Dispatch(ctx, vnet.DestinationFromAddr(addr), buffer)
+	return n, nil
+}
+
+func (c *dispatcherConn) Close() error {
+	return c.done.Close()
+}
+
+func (c *dispatcherConn) LocalAddr() net.Addr {
+	return &net.UDPAddr{
+		IP:   []byte{0, 0, 0, 0},
+		Port: 0,
+	}
+}
+
+func (c *dispatcherConn) SetDeadline(t time.Time) error {
+	return nil
+}
+
+func (c *dispatcherConn) SetReadDeadline(t time.Time) error {
+	return nil
+}
+
+func (c *dispatcherConn) SetWriteDeadline(t time.Time) error {
+	return nil
 }

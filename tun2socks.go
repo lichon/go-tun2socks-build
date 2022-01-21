@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"os"
 	"syscall"
 
 	vcore "github.com/v2fly/v2ray-core/v4"
@@ -42,7 +41,7 @@ func init() {
 			// return vinternet.DialSystem(ctx, d, nil)
 		},
 	}
-	os.Setenv("v2ray.ray.buffer.size", "0")
+	// os.Setenv("v2ray.ray.buffer.size", "0")
 }
 
 func newError(values ...interface{}) *verrors.Error {
