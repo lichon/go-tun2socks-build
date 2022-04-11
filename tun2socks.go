@@ -111,7 +111,7 @@ func StartV2Ray(
 			return protectFd(vpnService, int(fd))
 		}
 		vinternet.RegisterDialerController(netCtlr)
-		vinternet.RegisterListenerController(netCtlr)
+		// vinternet.RegisterListenerController(netCtlr)
 
 		// Start the V2Ray instance.
 		v, err = vcore.StartInstance("json", configBytes)
