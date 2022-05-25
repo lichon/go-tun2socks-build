@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"runtime"
 	"syscall"
 
 	vcore "github.com/v2fly/v2ray-core/v4"
@@ -32,6 +33,7 @@ const (
 type errPathObjHolder struct{}
 
 func init() {
+	runtime.GOMAXPROCS(64)
 	net.DefaultResolver = &net.Resolver{
 		PreferGo: true,
 		Dial: func(ctx context.Context, network, addr string) (net.Conn, error) {
