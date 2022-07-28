@@ -10,7 +10,11 @@ import (
 
 	vcore "github.com/v2fly/v2ray-core/v4"
 	verrors "github.com/v2fly/v2ray-core/v4/common/errors"
-	v2stats "github.com/v2fly/v2ray-core/v4/features/stats"
+	vprotocol "github.com/v2fly/v2ray-core/v4/common/protocol"
+	vinbound "github.com/v2fly/v2ray-core/v4/features/inbound"
+	vstats "github.com/v2fly/v2ray-core/v4/features/stats"
+	vproxy "github.com/v2fly/v2ray-core/v4/proxy"
+	"github.com/v2fly/v2ray-core/v4/proxy/vless"
 	vinternet "github.com/v2fly/v2ray-core/v4/transport/internet"
 
 	"go-tun2socks-build/core/device/rwbased"
@@ -23,7 +27,7 @@ var err error
 var ipStack *stack.Stack
 var endpoint *rwbased.Endpoint
 var v *vcore.Instance
-var statsManager v2stats.Manager
+var statsManager vstats.Manager
 var isStopped = false
 
 const (
@@ -43,7 +47,6 @@ func init() {
 			// return vinternet.DialSystem(ctx, d, nil)
 		},
 	}
-	// os.Setenv("v2ray.ray.buffer.size", "0")
 }
 
 func newError(values ...interface{}) *verrors.Error {
@@ -90,6 +93,69 @@ func SetLocalDNS(dns string) {
 	localDNS = dns
 }
 
+func getInbound(handler vinbound.Handler) (vproxy.Inbound, error) {
+	gi, ok := handler.(vproxy.GetInbound)
+	if !ok {
+		return nil, newError("can't get inbound proxy from handler.")
+	}
+	return gi.GetInbound(), nil
+}
+
+func AddUser(uuid string, email string, tag string) error {
+	if v == nil {
+		return newError("v instance is not ready")
+	}
+
+	inboundManager := v.GetFeature(vinbound.ManagerType()).(vinbound.Manager)
+	inboundHandler, err := inboundManager.GetHandler(nil, tag)
+	if err != nil {
+		return err
+	}
+	p, err := getInbound(inboundHandler)
+	if err != nil {
+		return err
+	}
+	um, ok := p.(vproxy.UserManager)
+	if !ok {
+		return newError("proxy is not a UserManager")
+	}
+	account := vless.Account{
+		Id:         uuid,
+		Flow:       "",
+		Encryption: "none",
+	}
+	pAccount, err := account.AsAccount()
+	if err != nil {
+		return err
+	}
+	return um.AddUser(nil, &vprotocol.MemoryUser{
+		Account: pAccount,
+		Email:   email,
+		Level:   0,
+	})
+}
+
+func RemoveUser(email string, tag string) error {
+	if v == nil {
+		return newError("v instance is not ready")
+	}
+
+	inboundManager := v.GetFeature(vinbound.ManagerType()).(vinbound.Manager)
+	inboundHandler, err := inboundManager.GetHandler(nil, tag)
+	if err != nil {
+		return err
+	}
+	p, err := getInbound(inboundHandler)
+	if err != nil {
+		return err
+	}
+	um, ok := p.(vproxy.UserManager)
+	if !ok {
+		return newError("proxy is not a UserManager")
+	}
+	return um.RemoveUser(nil, email)
+}
+
 // StartV2Ray sets up lwIP stack, starts a V2Ray instance and registers the instance as the
 // connection handler for tun2socks.
 func StartV2Ray(
@@ -127,7 +193,7 @@ func StartV2Ray(
 			ipStack, _ = stack.New(endpoint, v2ray.NewHandler(v), stack.WithDefault())
 		}
 
-		statsManager = v.GetFeature(v2stats.ManagerType()).(v2stats.Manager)
+		statsManager = v.GetFeature(vstats.ManagerType()).(vstats.Manager)
 		isStopped = false
 		logService.WriteLog(fmt.Sprintf("V2Ray %s started!", CheckVersion()))
 		return nil

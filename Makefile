@@ -23,9 +23,9 @@ android:
 	eval $(BUILD_ANDROID)
 
 wandroid:
-	powershell "rm -r $(BUILDDIR) -ErrorAction Ignore; $$null"
-	powershell "mkdir -p $(BUILDDIR); $$null"
-	powershell $(BUILD_ANDROID)
+	sh -c "rm -rf $(BUILDDIR)"
+	sh -c "mkdir -p $(BUILDDIR)"
+	eval $(BUILD_ANDROID)
 
 clean:
 	rm -rf $(BUILDDIR)
