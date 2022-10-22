@@ -171,7 +171,7 @@ func DialDispatcher(ctx context.Context, dispatcher vrouting.Dispatcher) (net.Pa
 		done:  done.New(),
 	}
 
-	log.Printf("Dial udp with chan size 64*1024")
+	// log.Printf("Dial udp with chan size 64*1024")
 	d := vudptrans.NewDispatcher(dispatcher, c.callback)
 	c.dispatcher = d
 	return c, nil
