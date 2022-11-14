@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"runtime"
+	"strings"
 	"syscall"
 
 	vcore "github.com/v2fly/v2ray-core/v4"
@@ -101,7 +102,7 @@ func getInbound(handler vinbound.Handler) (vproxy.Inbound, error) {
 	return gi.GetInbound(), nil
 }
 
-func AddUser(uuid string, email string, tag string) error {
+func addUser(uuid string, email string, tag string) error {
 	if v == nil {
 		return newError("v instance is not ready")
 	}
@@ -135,7 +136,7 @@ func AddUser(uuid string, email string, tag string) error {
 	})
 }
 
-func RemoveUser(email string, tag string) error {
+func removeUser(email string, tag string) error {
 	if v == nil {
 		return newError("v instance is not ready")
 	}
@@ -178,8 +179,16 @@ func StartV2Ray(
 		netCtlr := func(network, address string, fd uintptr) error {
 			return protectFd(vpnService, int(fd))
 		}
+		listenerCtlr := func(network, address string, fd uintptr) error {
+			logService.WriteLog(fmt.Sprintf("protecting network %s %s", network, address))
+			if strings.HasPrefix(fmt.Sprintf("%s", network), "udp") {
+				return protectFd(vpnService, int(fd))
+			} else {
+				return nil
+			}
+		}
 		vinternet.RegisterDialerController(netCtlr)
-		// vinternet.RegisterListenerController(netCtlr)
+		vinternet.RegisterListenerController(listenerCtlr)
 
 		// Start the V2Ray instance.
 		v, err = vcore.StartInstance("json", configBytes)
