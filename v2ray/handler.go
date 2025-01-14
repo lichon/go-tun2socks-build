@@ -14,8 +14,6 @@ const (
 	// could be buffered. if queue is full, upcoming packets
 	// would be dropped util queue is ready again.
 	maxUDPQueueSize = 1 << 9
-	MaxSegmentSize  = (1 << 16) - 1
-	RelayBufferSize = 20 * 1024
 )
 
 var (

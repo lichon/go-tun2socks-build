@@ -74,7 +74,7 @@ func relay(left, right net.Conn) {
 }
 
 func copyBuffer(dst io.Writer, src io.Reader) error {
-	buf := pool.Get(RelayBufferSize)
+	buf := pool.Get(pool.RelayBufferSize)
 	defer pool.Put(buf)
 
 	_, err := io.CopyBuffer(dst, src, buf)
