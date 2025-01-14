@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+
+	_ "golang.org/x/mobile/bind"
 )
 
 const (

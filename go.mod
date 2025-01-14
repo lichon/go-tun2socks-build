@@ -9,8 +9,9 @@ require (
 
 require (
 	github.com/google/btree v1.0.1 // indirect
+	golang.org/x/mobile v0.0.0-20221020085226-b36e6246172e
 	golang.org/x/time v0.0.0-20211116232009-f0f3c7e86c11
-	inet.af/netstack v0.0.0-20211120045802-8aa80cf23d3c
+	inet.af/netstack v0.0.0-20220214151720-7585b01ddccf
 )
 
 require (
@@ -40,10 +41,8 @@ require (
 	go4.org/intern v0.0.0-20210108033219-3eb7198706b2 // indirect
 	go4.org/unsafe/assume-no-moving-gc v0.0.0-20201222180813-1025295fd063 // indirect
 	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519 // indirect
-	golang.org/x/mobile v0.0.0-20221020085226-b36e6246172e // indirect
 	golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4 // indirect
 	golang.org/x/net v0.0.0-20220722155237-a158d28d115b // indirect
-	golang.org/x/sync v0.0.0-20220819030929-7fc1605a5dde // indirect
 	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/tools v0.1.12 // indirect
 	google.golang.org/genproto v0.0.0-20210310155132-4ce2db91004e // indirect
@@ -55,3 +54,7 @@ require (
 
 // replace with v2ray-core path
 // replace github.com/v2fly/v2ray-core/v4 v4.38.0 => ../v2ray-core
+
+replace inet.af/netaddr => github.com/inetaf/netaddr v0.0.0-20210903134321-85fa6c94624e
+
+replace inet.af/netstack => github.com/inetaf/netstack v0.0.0-20220214151720-7585b01ddccf
